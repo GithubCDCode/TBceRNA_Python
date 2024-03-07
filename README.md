@@ -37,5 +37,4 @@ All ce network results of mRNA or lncRNA related to the target can be directly i
 Network diagram.
 LncRNA_miRNA_mRNA.annot.txt: This file is the lncRNA_miRNA_mRNA.network.txt network file
 The annotation information can be directly imported into Cytoscape software to classify RNA types of nodes in the CE network.
-GOenrich folder: lncRNA_miRNA_mRNA. cor. gene. xls file for all genes (column 5)
-GO enrichment results
+
