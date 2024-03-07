@@ -1,0 +1,68 @@
+#!/PUBLIC/software/public/System/Python-2.7.6/bin/python
+import os,sys
+import rpy2.robjects as robjects
+import argparse
+import json
+dir=os.getcwd()
+print(dir)
+
+parser = argparse.ArgumentParser(description='Prediction of RNA\'s function.\nR function "cor.test" is applied to calculate the cor.')
+parser.add_argument('--RNA_1',required=True,help='Expression table of RNA_1, FPKM or RPKM.')
+parser.add_argument('--RNA_2',required=True,help='Expression table of RNA_2, FPKM or RPKM.')
+parser.add_argument('--outdir',required=False,help='The output dir, 3 files produced: lncRNA_mRNA.cortest.xls, lncRNA_mRNA.trans.xls, lncRNA_mRNA.trans.list.')
+parser.add_argument('--corr',default=0.95,type=float,help='The threshold of correlation coefficiency, default 0.95.')
+parser.add_argument('--relation',default='both',choices=['both','negative','positive'],help='Correlation type between lncRNA and mRNA, negative, positive or both, default both.')
+parser.add_argument('--gene_pairs',required=True,help='gene_pairs, RNA1 RNA2 pairs')
+argv=parser.parse_args()
+try:
+    output_dir = argv.outdir.strip()
+except:
+    output_dir = dir
+
+output_name = 'RNA_1_RNA_2.cortest.xls'.format(**locals())
+output_file = os.path.join(output_dir,output_name)
+RNA_1_RNA_2_cor = open(output_file,'w')
+
+co_express_file = open(output_dir+'/RNA_1_RNA_2.corr.list','w')
+gene_pairs=open(argv.gene_pairs.strip()).readlines()
+RNA_pairs_dict={}
+for each_line in gene_pairs:
+	each=each_line.strip().split("\t")
+	if each[0] not in RNA_pairs_dict:
+		RNA_pairs_dict[each[0]]=[]
+		RNA_pairs_dict[each[0]].append(each[1])
+	else:
+		RNA_pairs_dict[each[0]].append(each[1])
+
+cor=robjects.r['cor.test']
+RNA_2=open(argv.RNA_2.strip()).readlines()
+RNA_1=open(argv.RNA_1.strip()).readlines()
+#j=1
+#trans = {}
+for line in RNA_1:
+	array_RNA_1 = line.strip().split('\t')
+	RNA_1_id = array_RNA_1[0]
+	if RNA_1_id in RNA_pairs_dict:
+		RNA_1_rpkm=robjects.FloatVector([float(each) for each in array_RNA_1[1:]])
+		for each in RNA_2:
+			array_RNA_2 = each.strip().split('\t')
+			RNA_2_id = array_RNA_2[0]
+			if RNA_2_id in RNA_pairs_dict[RNA_1_id]:
+				pc_rpkm=robjects.FloatVector([float(tmp) for tmp in array_RNA_2[1:]])
+				tmpcor=cor(RNA_1_rpkm,pc_rpkm)
+				RNA_1_RNA_2_cor.write(array_RNA_1[0] + '\t' + array_RNA_2[0] + '\t' + str(list(tmpcor.rx2('estimate'))[0]) + '\t' +str(list(tmpcor.rx2('p.value'))[0]) + '\n')
+				RNA_1_id = array_RNA_1[0]
+				RNA_2_id = array_RNA_2[0]
+				cor_stat = str(list(tmpcor.rx2('estimate'))[0])
+				cor_pval = str(list(tmpcor.rx2('p.value'))[0])
+				co_express_output=''
+				if argv.relation.strip()=='positive' and list(tmpcor.rx2('estimate'))[0] > 0 and abs(list(tmpcor.rx2('estimate'))[0]) > argv.corr:
+					co_express_output = '{RNA_1_id}\t{RNA_2_id}\t{cor_stat}\t{cor_pval}\n'.format(**locals())
+				elif argv.relation.strip()=='negative' and list(tmpcor.rx2('estimate'))[0] < 0 and abs(list(tmpcor.rx2('estimate'))[0]) > argv.corr:
+					co_express_output = '{RNA_1_id}\t{RNA_2_id}\t{cor_stat}\t{cor_pval}\n'.format(**locals())
+			
+				elif argv.relation.strip()=='both' and  abs(list(tmpcor.rx2('estimate'))[0]) > argv.corr:
+					co_express_output = '{RNA_1_id}\t{RNA_2_id}\t{cor_stat}\t{cor_pval}\n'.format(**locals())
+				co_express_file.write(co_express_output)
+RNA_1_RNA_2_cor.close()
+co_express_file.close()
